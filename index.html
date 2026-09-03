@@ -1346,6 +1346,11 @@
         letter-spacing: 2px;
       }
 
+      .wishes-button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
       .wishes-list {
         max-width: 700px;
 
@@ -1903,7 +1908,7 @@
           <div class="and">&</div>
 
           <div class="person">
-            <h3>Theresa Silitonga S.Kom</h3>
+            <h3>Theresa Silitongan S.Kom</h3>
 
             <p>
               Putri dari<br />
@@ -2209,7 +2214,7 @@
         </div>
 
         <div class="wishes-list" id="wishesList">
-          <div class="wish">
+          <div class="wish" id="defaultWish">
             <strong> Keluarga & Sahabat </strong>
 
             <p>
@@ -2438,107 +2443,6 @@ Terima kasih 🙏`;
       }
 
       /* =========================================================
-   WISHES
-========================================================= */
-
-      function sendWish() {
-        const name = document.getElementById("wishName").value.trim();
-
-        const message = document.getElementById("wishMessage").value.trim();
-
-        if (!name || !message) {
-          alert("Silakan isi nama dan ucapan.");
-
-          return;
-        }
-
-        // simpan ke localStorage supaya tidak hilang saat halaman dimuat ulang
-        const savedWishes = JSON.parse(
-          localStorage.getItem("weddingWishes") || "[]",
-        );
-
-        savedWishes.unshift({ name: name, message: message });
-
-        localStorage.setItem("weddingWishes", JSON.stringify(savedWishes));
-
-        const wishesList = document.getElementById("wishesList");
-
-        const wish = document.createElement("div");
-
-        wish.className = "wish";
-
-        wish.innerHTML = `
-
-        <strong>
-            ${escapeHTML(name)}
-        </strong>
-
-        <p>
-            ${escapeHTML(message)}
-        </p>
-
-    `;
-
-        wishesList.prepend(wish);
-
-        document.getElementById("wishName").value = "";
-
-        document.getElementById("wishMessage").value = "";
-
-        alert("Terima kasih atas ucapan dan doanya 🙏");
-      }
-
-      /* =========================================================
-   MUAT UCAPAN TERSIMPAN
-========================================================= */
-
-      function loadSavedWishes() {
-        const savedWishes = JSON.parse(
-          localStorage.getItem("weddingWishes") || "[]",
-        );
-
-        const wishesList = document.getElementById("wishesList");
-
-        // urutkan dari yang paling lama ke paling baru saat di-prepend,
-        // supaya hasil akhirnya: ucapan terbaru tampil paling atas
-        for (let i = savedWishes.length - 1; i >= 0; i--) {
-          const w = savedWishes[i];
-
-          const wish = document.createElement("div");
-
-          wish.className = "wish";
-
-          wish.innerHTML = `
-
-        <strong>
-            ${escapeHTML(w.name)}
-        </strong>
-
-        <p>
-            ${escapeHTML(w.message)}
-        </p>
-
-    `;
-
-          wishesList.prepend(wish);
-        }
-      }
-
-      loadSavedWishes();
-
-      /* =========================================================
-   SECURITY
-========================================================= */
-
-      function escapeHTML(text) {
-        const div = document.createElement("div");
-
-        div.textContent = text;
-
-        return div.innerHTML;
-      }
-
-      /* =========================================================
    SCROLL REVEAL
 ========================================================= */
 
@@ -2577,6 +2481,147 @@ Terima kasih 🙏`;
           }
         });
       });
+    </script>
+
+    <!-- =======================================================
+     UCAPAN & DOA (FIREBASE FIRESTORE)
+     Supaya ucapan & doa yang dikirim tamu bisa dilihat SEMUA
+     orang (real-time), bukan cuma tersimpan di browser masing2.
+
+     LANGKAH SETUP (gratis):
+     1. Buka https://console.firebase.google.com -> Add project
+     2. Di project, buka "Build > Firestore Database" -> Create database
+        (mode production, region asia-southeast/singapore terdekat)
+     3. Buka "Project settings" (ikon gerigi) -> scroll ke "Your apps"
+        -> klik ikon web "</>" -> daftarkan app -> copy firebaseConfig
+     4. Tempel nilai firebaseConfig kamu ke bagian GANTI_... di bawah
+     5. Di Firestore > Rules, pakai contoh rule ini (izinkan orang
+        menambah & membaca ucapan, tapi tidak mengedit/menghapus punya
+        orang lain):
+
+        rules_version = '2';
+        service cloud.firestore {
+          match /databases/{database}/documents {
+            match /wishes/{wishId} {
+              allow read: if true;
+              allow create: if request.resource.data.name is string
+                            && request.resource.data.message is string
+                            && request.resource.data.name.size() < 100
+                            && request.resource.data.message.size() < 1000;
+              allow update, delete: if false;
+            }
+          }
+        }
+======================================================= -->
+
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+      import {
+        getFirestore,
+        collection,
+        addDoc,
+        query,
+        orderBy,
+        onSnapshot,
+        serverTimestamp,
+      } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+      // GANTI DENGAN KONFIGURASI FIREBASE PROJECT ANDA SENDIRI
+      const firebaseConfig = {
+  apiKey: "AIzaSyAZHp_vUtfokYiXAo7WzlhfetnkBs61dXA",
+  authDomain: "social-app-264f6.firebaseapp.com",
+  databaseURL: "https://social-app-264f6-default-rtdb.firebaseio.com",
+  projectId: "social-app-264f6",
+  storageBucket: "social-app-264f6.appspot.com",
+  messagingSenderId: "293321706733",
+  appId: "1:293321706733:web:388488db6573b8b65150e4",
+  measurementId: "G-9ZZYKG396F"
+};
+
+      const app = initializeApp(firebaseConfig);
+      const db = getFirestore(app);
+      const wishesCollection = collection(db, "wishes");
+
+      function escapeHTML(text) {
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+      }
+
+      // dipanggil oleh tombol "KIRIM UCAPAN" (onclick di HTML)
+      window.sendWish = async function () {
+        const nameInput = document.getElementById("wishName");
+        const messageInput = document.getElementById("wishMessage");
+
+        const name = nameInput.value.trim();
+        const message = messageInput.value.trim();
+
+        if (!name || !message) {
+          alert("Silakan isi nama dan ucapan.");
+          return;
+        }
+
+        const button = document.querySelector(".wishes-button");
+        const originalText = button.textContent;
+
+        button.disabled = true;
+        button.textContent = "MENGIRIM...";
+
+        try {
+          await addDoc(wishesCollection, {
+            name: name,
+            message: message,
+            createdAt: serverTimestamp(),
+          });
+
+          nameInput.value = "";
+          messageInput.value = "";
+
+          alert("Terima kasih atas ucapan dan doanya 🙏");
+        } catch (error) {
+          console.error(error);
+          alert(
+            "Gagal mengirim ucapan. Pastikan koneksi internet aktif dan konfigurasi Firebase sudah benar.",
+          );
+        } finally {
+          button.disabled = false;
+          button.textContent = originalText;
+        }
+      };
+
+      // dengarkan perubahan data secara real-time, semua pengunjung
+      // akan melihat ucapan baru tanpa perlu refresh halaman
+      const wishesQuery = query(wishesCollection, orderBy("createdAt", "desc"));
+
+      onSnapshot(
+        wishesQuery,
+        function (snapshot) {
+          const wishesList = document.getElementById("wishesList");
+          const defaultWish = document.getElementById("defaultWish");
+
+          document.querySelectorAll(".wish-dynamic").forEach(function (el) {
+            el.remove();
+          });
+
+          snapshot.forEach(function (docSnap) {
+            const data = docSnap.data();
+
+            const wish = document.createElement("div");
+            wish.className = "wish wish-dynamic";
+            wish.innerHTML =
+              "<strong>" +
+              escapeHTML(data.name) +
+              "</strong><p>" +
+              escapeHTML(data.message) +
+              "</p>";
+
+            wishesList.insertBefore(wish, defaultWish);
+          });
+        },
+        function (error) {
+          console.error("Gagal memuat ucapan:", error);
+        },
+      );
     </script>
   </body>
 </html>
