@@ -2208,7 +2208,7 @@
           <textarea id="wishMessage" placeholder="Tulis ucapan dan doa...">
           </textarea>
 
-          <button class="wishes-button" onclick="sendWish()">
+          <button class="wishes-button" onclick="confirmSendWish()">
             KIRIM UCAPAN
           </button>
         </div>
@@ -2250,6 +2250,9 @@
 ======================================================= -->
 
     <footer>JESAYA & THERESA · 2026</footer>
+
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <script>
       /* =========================================================
@@ -2487,31 +2490,6 @@ Terima kasih 🙏`;
      UCAPAN & DOA (FIREBASE FIRESTORE)
      Supaya ucapan & doa yang dikirim tamu bisa dilihat SEMUA
      orang (real-time), bukan cuma tersimpan di browser masing2.
-
-     LANGKAH SETUP (gratis):
-     1. Buka https://console.firebase.google.com -> Add project
-     2. Di project, buka "Build > Firestore Database" -> Create database
-        (mode production, region asia-southeast/singapore terdekat)
-     3. Buka "Project settings" (ikon gerigi) -> scroll ke "Your apps"
-        -> klik ikon web "</>" -> daftarkan app -> copy firebaseConfig
-     4. Tempel nilai firebaseConfig kamu ke bagian GANTI_... di bawah
-     5. Di Firestore > Rules, pakai contoh rule ini (izinkan orang
-        menambah & membaca ucapan, tapi tidak mengedit/menghapus punya
-        orang lain):
-
-        rules_version = '2';
-        service cloud.firestore {
-          match /databases/{database}/documents {
-            match /wishes/{wishId} {
-              allow read: if true;
-              allow create: if request.resource.data.name is string
-                            && request.resource.data.message is string
-                            && request.resource.data.name.size() < 100
-                            && request.resource.data.message.size() < 1000;
-              allow update, delete: if false;
-            }
-          }
-        }
 ======================================================= -->
 
     <script type="module">
@@ -2526,17 +2504,16 @@ Terima kasih 🙏`;
         serverTimestamp,
       } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-      // GANTI DENGAN KONFIGURASI FIREBASE PROJECT ANDA SENDIRI
       const firebaseConfig = {
-  apiKey: "AIzaSyAZHp_vUtfokYiXAo7WzlhfetnkBs61dXA",
-  authDomain: "social-app-264f6.firebaseapp.com",
-  databaseURL: "https://social-app-264f6-default-rtdb.firebaseio.com",
-  projectId: "social-app-264f6",
-  storageBucket: "social-app-264f6.appspot.com",
-  messagingSenderId: "293321706733",
-  appId: "1:293321706733:web:388488db6573b8b65150e4",
-  measurementId: "G-9ZZYKG396F"
-};
+        apiKey: "AIzaSyAZHp_vUtfokYiXAo7WzlhfetnkBs61dXA",
+        authDomain: "social-app-264f6.firebaseapp.com",
+        databaseURL: "https://social-app-264f6-default-rtdb.firebaseio.com",
+        projectId: "social-app-264f6",
+        storageBucket: "social-app-264f6.appspot.com",
+        messagingSenderId: "293321706733",
+        appId: "1:293321706733:web:388488db6573b8b65150e4",
+        measurementId: "G-9ZZYKG396F",
+      };
 
       const app = initializeApp(firebaseConfig);
       const db = getFirestore(app);
@@ -2548,8 +2525,8 @@ Terima kasih 🙏`;
         return div.innerHTML;
       }
 
-      // dipanggil oleh tombol "KIRIM UCAPAN" (onclick di HTML)
-      window.sendWish = async function () {
+      // benar-benar mengirim ucapan ke Firestore
+      async function submitWish() {
         const nameInput = document.getElementById("wishName");
         const messageInput = document.getElementById("wishMessage");
 
@@ -2557,7 +2534,6 @@ Terima kasih 🙏`;
         const message = messageInput.value.trim();
 
         if (!name || !message) {
-          alert("Silakan isi nama dan ucapan.");
           return;
         }
 
@@ -2577,16 +2553,80 @@ Terima kasih 🙏`;
           nameInput.value = "";
           messageInput.value = "";
 
-          alert("Terima kasih atas ucapan dan doanya 🙏");
+          await Swal.fire({
+            icon: "success",
+            title: "Terima Kasih 🙏",
+            text: "Ucapan dan doa Anda telah terkirim.",
+            confirmButtonText: "Tutup",
+            confirmButtonColor: "#17352a",
+          });
         } catch (error) {
           console.error(error);
-          alert(
-            "Gagal mengirim ucapan. Pastikan koneksi internet aktif dan konfigurasi Firebase sudah benar.",
-          );
+
+          Swal.fire({
+            icon: "error",
+            title: "Gagal Mengirim",
+            text: "Pastikan koneksi internet Anda aktif, lalu coba lagi.",
+            confirmButtonText: "Tutup",
+            confirmButtonColor: "#17352a",
+          });
         } finally {
           button.disabled = false;
           button.textContent = originalText;
         }
+      }
+
+      // dipanggil oleh tombol "KIRIM UCAPAN" (onclick di HTML)
+      // menampilkan konfirmasi SweetAlert dengan 2 pilihan
+      window.confirmSendWish = async function () {
+        const name = document.getElementById("wishName").value.trim();
+        const message = document.getElementById("wishMessage").value.trim();
+
+        if (!name || !message) {
+          Swal.fire({
+            icon: "warning",
+            title: "Belum Lengkap",
+            text: "Silakan isi nama dan ucapan terlebih dahulu.",
+            confirmButtonText: "Oke",
+            confirmButtonColor: "#17352a",
+          });
+          return;
+        }
+
+        const result = await Swal.fire({
+          title: "Kirim Ucapan & Doa",
+          text: "Apakah Anda juga ingin memberikan tanda kasih untuk mempelai?",
+          icon: "question",
+          showDenyButton: true,
+          confirmButtonText: "Kirim dengan Memberi",
+          denyButtonText: "Kirim Tanpa Memberi",
+          confirmButtonColor: "#c9a65b",
+          denyButtonColor: "#17352a",
+          reverseButtons: true,
+        });
+
+        if (result.isConfirmed) {
+          // GANTI DENGAN DATA REKENING ASLI ANDA
+          await Swal.fire({
+            title: "Tanda Kasih",
+            html:
+              '<p style="margin-bottom:10px;">Anda dapat mengirimkan tanda kasih melalui transfer ke rekening berikut:</p>' +
+              '<div style="background:#f7f1e5;border-radius:8px;padding:16px;text-align:left;line-height:1.8;">' +
+              "<strong>AlloBank</strong><br>" +
+              "No. Rekening: <strong>083849884485</strong><br>" +
+              "a.n. Jesaya Sohasuhatan Ambarita" +
+              "</div>" +
+              '<p style="margin-top:12px;font-size:13px;color:#718077;">Terima kasih atas doa dan tanda kasihnya 🙏</p>',
+            icon: "success",
+            confirmButtonText: "Tutup & Kirim Ucapan",
+            confirmButtonColor: "#17352a",
+          });
+
+          await submitWish();
+        } else if (result.isDenied) {
+          await submitWish();
+        }
+        // jika result.isDismissed (klik luar / tombol X), tidak mengirim apa-apa
       };
 
       // dengarkan perubahan data secara real-time, semua pengunjung
